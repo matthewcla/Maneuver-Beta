@@ -155,9 +155,13 @@ class ContactController {
         if(this.t.isUserControlled||this.t.isHazard) return;
         switch(this.t.state){
             case 'MONITORING':
-                if(this._collisionThreat(allContacts,cfg)){ this._planManeuver(); }
+                if(this._collisionThreat(allContacts,cfg)){
+                    this._planManeuver(allContacts);
+                }
                 break;
-            case 'CALCULATING_MANEUVER': break;
+            case 'CALCULATING_MANEUVER':
+                this._calculateOrca(allContacts);
+                break;
             case 'EXECUTING_MANEUVER':
                 this._applyManeuver(dtHours); break;
             case 'RESUMING_COURSE':
@@ -175,18 +179,10 @@ class ContactController {
             }
         } return false;
     }
-    _planManeuver(){
-        const rel=(this.t.threat&&this._relativeSituation(this.t,this.t.threat))||'UNKNOWN';
-        let deltaCrs=0, deltaSpd=0;
-        switch(rel){
-            case 'HEAD_ON': deltaCrs=30; break;
-            case 'CROSS_GIVEWAY': deltaCrs=35; break;
-            case 'OVERTAKING': deltaCrs=0; deltaSpd=-0.4*this.t.speed; break;
-            default: deltaCrs=25;
-        }
-        this.t._targetCourse=(this.t.course+deltaCrs+360)%360;
-        this.t._targetSpeed=Math.max(2,this.t.speed+deltaSpd);
-        this.t.state='EXECUTING_MANEUVER';
+    _planManeuver(all){
+        // transition into ORCA planning state
+        this.t.state='CALCULATING_MANEUVER';
+        this._calculateOrca(all);
     }
     _applyManeuver(dt){
         const rateTurn=10*dt*60;
@@ -216,6 +212,38 @@ class ContactController {
             this.t.state='MONITORING';
             delete this.t.threat;
         }
+    }
+
+    _calculateOrca(all){
+        if(typeof window.RVO==='undefined'){ // fallback to rule-based if RVO not loaded
+            const rel=(this.t.threat&&this._relativeSituation(this.t,this.t.threat))||'UNKNOWN';
+            let deltaCrs=0, deltaSpd=0;
+            switch(rel){
+                case 'HEAD_ON': deltaCrs=30; break;
+                case 'CROSS_GIVEWAY': deltaCrs=35; break;
+                case 'OVERTAKING': deltaCrs=0; deltaSpd=-0.4*this.t.speed; break;
+                default: deltaCrs=25;
+            }
+            this.t._targetCourse=(this.t.course+deltaCrs+360)%360;
+            this.t._targetSpeed=Math.max(2,this.t.speed+deltaSpd);
+            this.t.state='EXECUTING_MANEUVER';
+            return;
+        }
+        const sim=new window.RVO.RVOSimulator(0.25,1000,10,15,15,0.3,15);
+        const own=this._asParticle(this.t);
+        const handle=sim.addAgent([own.x,own.y],1000,10,15,15,0.3,15,[own.vx,own.vy]);
+        for(const o of all){
+            if(o===this.t||o.isHazard) continue;
+            const p=this._asParticle(o);
+            sim.addAgent([p.x,p.y],1000,10,15,15,0.3,15,[p.vx,p.vy]);
+        }
+        sim.doStep();
+        const v=sim.getAgentVelocity(handle);
+        const speed=Math.hypot(v[0],v[1]);
+        const course=(90-Math.atan2(v[1],v[0])*180/Math.PI+360)%360;
+        this.t._targetCourse=course;
+        this.t._targetSpeed=speed;
+        this.t.state='EXECUTING_MANEUVER';
     }
     _relativeSituation(a,b){
         const brg=(Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI+360)%360;
