@@ -103,13 +103,17 @@ export class TrafficSim {
     this.wrapper.addAgent(id, track.posXY, track.velXY);
   }
 
+  /**
+   * Bearing from `from` to `to` relative to `from`'s heading.
+   * Positive values indicate the target is on the starboard side.
+   */
   private relativeBearing(from: Track, to: Track): number {
     const dx = to.posXY[0] - from.posXY[0];
     const dy = to.posXY[1] - from.posXY[1];
     const brg = Math.atan2(dy, dx);
     const hdg = Math.atan2(from.velXY[1], from.velXY[0]);
-    const rel = ((brg - hdg) * 180) / Math.PI;
-    return (rel + 360) % 360;
+    const rel = ((hdg - brg) * 180) / Math.PI;
+    return (rel % 360 + 360) % 360;
   }
 
   private preferredToWaypoint(t: Track): [number, number] {
