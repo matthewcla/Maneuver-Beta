@@ -20,6 +20,11 @@ describe('classifyEncounter', () => {
     expect(classifyEncounter(355)).toBe('headOn')
     expect(classifyEncounter(-5)).toBe('headOn')
   })
+
+  test('same-heading vessels are not headOn', () => {
+    expect(classifyEncounter(0, 0)).not.toBe('headOn')
+    expect(classifyEncounter(180, 0)).not.toBe('headOn')
+  })
 })
 
 describe('applyColregsBias', () => {

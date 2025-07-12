@@ -44,12 +44,25 @@ export type Encounter =
  *                   Any numeric input is accepted and normalized to 0-360.
  * @returns The encounter classification.
  */
-export function classifyEncounter(bearingDeg: number): Encounter {
+export function classifyEncounter(
+  bearingDeg: number,
+  otherHeadingDeg?: number
+): Encounter {
   // normalize bearing to range [0, 360)
   const beta = ((bearingDeg % 360) + 360) % 360;
 
+  // check whether headings are roughly reciprocal when provided
+  let reciprocal = true;
+  if (otherHeadingDeg !== undefined) {
+    const rel = ((otherHeadingDeg % 360) + 360) % 360;
+    reciprocal = Math.abs(rel - 180) <= 10;
+  }
+
   // check head-on condition first
-  if (beta <= 5 || beta >= 355 || Math.abs(beta - 180) <= 5) {
+  if (
+    reciprocal &&
+    (beta <= 5 || beta >= 355 || Math.abs(beta - 180) <= 5)
+  ) {
     return 'headOn';
   }
 
