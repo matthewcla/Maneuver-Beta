@@ -116,6 +116,11 @@ export class TrafficSim {
     return (rel % 360 + 360) % 360;
   }
 
+  private headingDeg(t: Track): number {
+    const deg = (Math.atan2(t.velXY[1], t.velXY[0]) * 180) / Math.PI;
+    return (deg + 360) % 360;
+  }
+
   private preferredToWaypoint(t: Track): [number, number] {
     const wp = t.waypoints[t.wpIndex];
     if (!wp) return t.velXY;
@@ -150,8 +155,16 @@ export class TrafficSim {
       const a = list[i];
       for (let j = i + 1; j < list.length; j++) {
         const b = list[j];
-        const encA = classifyEncounter(this.relativeBearing(a, b));
-        const encB = classifyEncounter(this.relativeBearing(b, a));
+        const relHdgAB = this.headingDeg(b) - this.headingDeg(a);
+        const relHdgBA = this.headingDeg(a) - this.headingDeg(b);
+        const encA = classifyEncounter(
+          this.relativeBearing(a, b),
+          (relHdgAB + 360) % 360
+        );
+        const encB = classifyEncounter(
+          this.relativeBearing(b, a),
+          (relHdgBA + 360) % 360
+        );
         a.encounter = select(a.encounter!, encA);
         b.encounter = select(b.encounter!, encB);
       }
