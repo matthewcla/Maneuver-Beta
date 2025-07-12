@@ -20,6 +20,11 @@ describe('classifyEncounter', () => {
     expect(classifyEncounter(355)).toBe('headOn')
     expect(classifyEncounter(-5)).toBe('headOn')
   })
+
+  test('port crossing is not mistaken for overtaking', () => {
+    expect(classifyEncounter(250)).toBe('crossingPort')
+    expect(classifyEncounter(300)).toBe('crossingPort')
+  })
 })
 
 describe('applyColregsBias', () => {
