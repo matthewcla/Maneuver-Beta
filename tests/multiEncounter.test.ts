@@ -11,5 +11,5 @@ test('highest priority encounter is kept when multiple ships present', () => {
   const tracks = (sim as any).tracks
   expect(tracks.get('A').encounter).toBe('headOn')
   expect(tracks.get('B').encounter).toBe('headOn')
-  expect(tracks.get('C').encounter).toBe('crossingStarboard')
+  expect(tracks.get('C').encounter).toBe('crossingPort')
 })

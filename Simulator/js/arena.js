@@ -219,10 +219,22 @@ class ContactController {
             const rel=(this.t.threat&&this._relativeSituation(this.t,this.t.threat))||'UNKNOWN';
             let deltaCrs=0, deltaSpd=0;
             switch(rel){
-                case 'HEAD_ON': deltaCrs=30; break;
-                case 'CROSS_GIVEWAY': deltaCrs=35; break;
-                case 'OVERTAKING': deltaCrs=0; deltaSpd=-0.4*this.t.speed; break;
-                default: deltaCrs=25;
+                case 'HEAD_ON':
+                    deltaCrs = 30;
+                    break;
+                case 'CROSS_GIVEWAY':
+                    deltaCrs = 35;
+                    break;
+                case 'OVERTAKING':
+                    deltaCrs = 0;
+                    deltaSpd = -0.4 * this.t.speed;
+                    break;
+                case 'CROSS_STANDON':
+                    deltaCrs = 0;
+                    deltaSpd = 0;
+                    break;
+                default:
+                    deltaCrs = 25;
             }
             this.t._targetCourse=(this.t.course+deltaCrs+360)%360;
             this.t._targetSpeed=Math.max(2,this.t.speed+deltaSpd);
@@ -252,6 +264,7 @@ class ContactController {
         const relBrg=(brg - a.course + 360)%360;
         if(relBrg>112.5&&relBrg<247.5) return 'OVERTAKING';
         if(relBrg>0&&relBrg<112.5) return 'CROSS_GIVEWAY';
+        if(relBrg>=247.5) return 'CROSS_STANDON';
         return 'OTHER';
     }
     _asParticle(v){const rad=(90-v.course)*Math.PI/180;return{x:v.x,y:v.y,vx:v.speed*Math.cos(rad),vy:v.speed*Math.sin(rad)}}
