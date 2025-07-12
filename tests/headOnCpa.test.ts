@@ -17,3 +17,14 @@ test('head-on encounter keeps CPA above 0.25 NM', () => {
   const entry = logs.find(l => l.ids.includes('A') && l.ids.includes('B'))
   expect(entry && entry.cpaMeters >= 463).toBe(true)
 })
+
+test('same-direction vessels are not head-on', () => {
+  const sim = new TrafficSim(DEFAULT_ARGS)
+  sim.addTrack('A', [-1000, 0], [[1000, 0]], 5)
+  sim.addTrack('B', [-1500, 0], [[500, 0]], 5)
+
+  sim.tick()
+  const tracks = (sim as any).tracks
+  expect(tracks.get('A').encounter).not.toBe('headOn')
+  expect(tracks.get('B').encounter).not.toBe('headOn')
+})

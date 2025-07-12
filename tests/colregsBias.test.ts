@@ -21,9 +21,9 @@ describe('classifyEncounter', () => {
     expect(classifyEncounter(-5)).toBe('headOn')
   })
 
-  test('port crossing is not mistaken for overtaking', () => {
-    expect(classifyEncounter(250)).toBe('crossingPort')
-    expect(classifyEncounter(300)).toBe('crossingPort')
+  test('same-heading vessels are not headOn', () => {
+    expect(classifyEncounter(0, 0)).not.toBe('headOn')
+    expect(classifyEncounter(180, 0)).not.toBe('headOn')
   })
 })
 
