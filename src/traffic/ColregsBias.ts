@@ -40,8 +40,12 @@ export type Encounter =
 /**
  * Classify the type of COLREGS encounter based on relative bearing.
  *
- * @param bearingDeg Bearing from own ship to the target in degrees.
- *                   Any numeric input is accepted and normalized to 0-360.
+ * @param bearingDeg       Bearing from own ship to the target in degrees.
+ *                         Any numeric input is accepted and normalized to 0-360.
+ * @param otherHeadingDeg  Optional relative heading of the target in degrees
+ *                         (target heading minus own heading). When supplied,
+ *                         a head-on encounter is detected only when this
+ *                         difference is roughly 180°.
  * @returns The encounter classification.
  */
 export function classifyEncounter(

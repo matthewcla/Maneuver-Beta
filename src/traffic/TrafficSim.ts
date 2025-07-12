@@ -113,7 +113,8 @@ export class TrafficSim {
   }
 
   private headingDeg(t: Track): number {
-    return (Math.atan2(t.velXY[1], t.velXY[0]) * 180) / Math.PI;
+    const deg = (Math.atan2(t.velXY[1], t.velXY[0]) * 180) / Math.PI;
+    return (deg + 360) % 360;
   }
 
   private preferredToWaypoint(t: Track): [number, number] {
