@@ -155,9 +155,13 @@ class ContactController {
         if(this.t.isUserControlled||this.t.isHazard) return;
         switch(this.t.state){
             case 'MONITORING':
-                if(this._collisionThreat(allContacts,cfg)){ this._planManeuver(); }
+                if(this._collisionThreat(allContacts,cfg)){
+                    this._planManeuver(allContacts);
+                }
                 break;
-            case 'CALCULATING_MANEUVER': break;
+            case 'CALCULATING_MANEUVER':
+                this._calculateOrca(allContacts);
+                break;
             case 'EXECUTING_MANEUVER':
                 this._applyManeuver(dtHours); break;
             case 'RESUMING_COURSE':
@@ -175,18 +179,10 @@ class ContactController {
             }
         } return false;
     }
-    _planManeuver(){
-        const rel=(this.t.threat&&this._relativeSituation(this.t,this.t.threat))||'UNKNOWN';
-        let deltaCrs=0, deltaSpd=0;
-        switch(rel){
-            case 'HEAD_ON': deltaCrs=30; break;
-            case 'CROSS_GIVEWAY': deltaCrs=35; break;
-            case 'OVERTAKING': deltaCrs=0; deltaSpd=-0.4*this.t.speed; break;
-            default: deltaCrs=25;
-        }
-        this.t._targetCourse=(this.t.course+deltaCrs+360)%360;
-        this.t._targetSpeed=Math.max(2,this.t.speed+deltaSpd);
-        this.t.state='EXECUTING_MANEUVER';
+    _planManeuver(all){
+        // transition into ORCA planning state
+        this.t.state='CALCULATING_MANEUVER';
+        this._calculateOrca(all);
     }
     _applyManeuver(dt){
         const rateTurn=10*dt*60;
@@ -217,6 +213,50 @@ class ContactController {
             delete this.t.threat;
         }
     }
+
+    _calculateOrca(all){
+        if(typeof window.RVO==='undefined'){ // fallback to rule-based if RVO not loaded
+            const rel=(this.t.threat&&this._relativeSituation(this.t,this.t.threat))||'UNKNOWN';
+            let deltaCrs=0, deltaSpd=0;
+            switch(rel){
+                case 'HEAD_ON':
+                    deltaCrs = 30;
+                    break;
+                case 'CROSS_GIVEWAY':
+                    deltaCrs = 35;
+                    break;
+                case 'OVERTAKING':
+                    deltaCrs = 0;
+                    deltaSpd = -0.4 * this.t.speed;
+                    break;
+                case 'CROSS_STANDON':
+                    deltaCrs = 0;
+                    deltaSpd = 0;
+                    break;
+                default:
+                    deltaCrs = 25;
+            }
+            this.t._targetCourse=(this.t.course+deltaCrs+360)%360;
+            this.t._targetSpeed=Math.max(2,this.t.speed+deltaSpd);
+            this.t.state='EXECUTING_MANEUVER';
+            return;
+        }
+        const sim=new window.RVO.RVOSimulator(0.25,1000,10,15,15,0.3,15);
+        const own=this._asParticle(this.t);
+        const handle=sim.addAgent([own.x,own.y],1000,10,15,15,0.3,15,[own.vx,own.vy]);
+        for(const o of all){
+            if(o===this.t||o.isHazard) continue;
+            const p=this._asParticle(o);
+            sim.addAgent([p.x,p.y],1000,10,15,15,0.3,15,[p.vx,p.vy]);
+        }
+        sim.doStep();
+        const v=sim.getAgentVelocity(handle);
+        const speed=Math.hypot(v[0],v[1]);
+        const course=(90-Math.atan2(v[1],v[0])*180/Math.PI+360)%360;
+        this.t._targetCourse=course;
+        this.t._targetSpeed=speed;
+        this.t.state='EXECUTING_MANEUVER';
+    }
     _relativeSituation(a,b){
         const brg=(Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI+360)%360;
         const diffHdgs=Math.abs(((a.course - b.course + 540)%360)-180);
@@ -224,6 +264,7 @@ class ContactController {
         const relBrg=(brg - a.course + 360)%360;
         if(relBrg>112.5&&relBrg<247.5) return 'OVERTAKING';
         if(relBrg>0&&relBrg<112.5) return 'CROSS_GIVEWAY';
+        if(relBrg>=247.5) return 'CROSS_STANDON';
         return 'OTHER';
     }
     _asParticle(v){const rad=(90-v.course)*Math.PI/180;return{x:v.x,y:v.y,vx:v.speed*Math.cos(rad),vy:v.speed*Math.sin(rad)}}
@@ -607,7 +648,12 @@ class Simulator {
         this.updatePhysics(deltaTime);
 
         if (this.isSimulationRunning) {
-            this.simulationElapsed += (deltaTime / 1000) * Math.abs(this.simulationSpeed);
+            const dt = (deltaTime / 1000) * Math.abs(this.simulationSpeed);
+            if (this.simulationSpeed >= 0) {
+                this.simulationElapsed += dt;
+            } else {
+                this.simulationElapsed = Math.max(0, this.simulationElapsed - dt);
+            }
             this.sceneDirty = true;
         }
 
@@ -1299,8 +1345,10 @@ class Simulator {
         // this.btnCpa.className = `control-btn ${this.showCPAInfo ? 'selected' : 'unselected'}`;
 
         this.btnPlayPause.className = `sim-control-btn ${this.isSimulationRunning ? 'selected' : 'unselected'}`;
-        this.iconPlay.classList.toggle('d-none', this.isSimulationRunning);
-        this.iconPause.classList.toggle('d-none', !this.isSimulationRunning);
+
+        const showPause = this.isSimulationRunning && this.simulationSpeed === 1;
+        this.iconPlay.classList.toggle('d-none', showPause);
+        this.iconPause.classList.toggle('d-none', !showPause);
 
         this.btnFf.className = `sim-control-btn ${this.simulationSpeed > 1 ? 'selected' : 'unselected'}`;
         this.btnRev.className = `sim-control-btn ${this.simulationSpeed < 0 ? 'selected' : 'unselected'}`;
@@ -1447,6 +1495,11 @@ class Simulator {
                 this.selectedTrackId = item.id;
             }
             this.hoveredTrackId = item.id;
+            if ((item.type === 'icon' || item.type === 'vector') &&
+                item.id !== 'ownShip' && item.id !== 'trueWind') {
+                const track = this.tracks.find(t => t.id === item.id);
+                if (track) track.isUserControlled = true;
+            }
             this.markSceneDirty();
         } else {
             this.pendingDragId = null;
@@ -1462,6 +1515,37 @@ class Simulator {
                 this.ownShip.orderedCourse = this.ownShip.dragCourse;
                 this.ownShip.orderedSpeed = this.ownShip.dragSpeed;
             }
+        }
+        if (this.dragType === 'icon' &&
+            this.draggedItemId &&
+            this.draggedItemId !== 'ownShip' &&
+            this.draggedItemId !== 'trueWind') {
+            const track = this.tracks.find(t => t.id === this.draggedItemId);
+            if (track) {
+                const dx = track.x - this.ownShip.x;
+                const dy = track.y - this.ownShip.y;
+                track.initialRange = Math.sqrt(dx * dx + dy * dy);
+                track.initialBearing = (this.toDegrees(Math.atan2(dx, dy)) + 360) % 360;
+                this.sceneDirty = true;
+            }
+        }
+
+        if (this.dragType === 'vector' &&
+            this.draggedItemId &&
+            this.draggedItemId !== 'ownShip' &&
+            this.draggedItemId !== 'trueWind') {
+            const track = this.tracks.find(t => t.id === this.draggedItemId);
+            if (track && track._base) {
+                track._base.course = track.course;
+                track._base.speed = track.speed;
+            }
+        }
+
+        if (this.draggedItemId &&
+            this.draggedItemId !== 'ownShip' &&
+            this.draggedItemId !== 'trueWind') {
+            const track = this.tracks.find(t => t.id === this.draggedItemId);
+            if (track) track.isUserControlled = false;
         }
         this.ownShip.dragCourse = null;
         this.ownShip.dragSpeed = null;
@@ -1589,7 +1673,8 @@ class Simulator {
             if (!vessel.vectorEndpoint) continue;
             const startPt = (vessel.id === 'ownShip') ? {x: center, y: center} : this.getTargetCoords(center, radius, vessel);
             const distFromStart = Math.hypot(mouseX - startPt.x, mouseY - startPt.y);
-            if (distFromStart < minVecPickDistance) continue;
+            const minAllowed = vessel.id === 'ownShip' ? 0 : minVecPickDistance;
+            if (distFromStart < minAllowed) continue;
             const endPt = vessel.vectorEndpoint;
             const dist = this.distToSegment({x: mouseX, y: mouseY}, startPt, endPt);
             if (dist < hitTolerance) return {type: 'vector', id: vessel.id};
