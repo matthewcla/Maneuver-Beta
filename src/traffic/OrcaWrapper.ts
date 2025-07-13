@@ -53,8 +53,8 @@ export class OrcaWrapper {
   }
 
   step(): void {
-    this.sim.setAgentMaxNeighbors(15);
     for (const handle of this.agents.values()) {
+      this.sim.setAgentMaxNeighbors(handle, 15);
       this.sim.setAgentNeighborDist(handle, this.neighborDist);
     }
     // TODO: switch to sector-pruning when agent count exceeds 50

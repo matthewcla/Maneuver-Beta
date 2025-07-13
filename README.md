@@ -29,3 +29,6 @@ npm test
 
 Continuous integration runs `npm ci` followed by `npm test`, so the same
 dependencies are installed in CI.
+
+Vitest is configured in `vite.config.ts` using global APIs and a Node
+environment. Type support for the tests lives in `tsconfig.vitest.json`.
